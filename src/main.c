@@ -6,30 +6,32 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "chunk.h"
-#include "frame.h"
-#include "header.h"
-
+#include "parser.h"
 
 int
 main(int argc, char *argv[]) {
-    char *file = "example.ase";
+    char *file_path = "example.ase";
     if (argc == 2) {
-        file = argv[1];
+        file_path = argv[1];
     }
 
-    FILE *fptr;
-    fptr = fopen(file, "r");
+    FILE *pfile;
+    pfile = fopen(file_path, "r");
 
-    header_t header = parse_header(fptr);
+    file_t *file = parse_file(pfile);
+    printf("file - frame_count: %zu\n", file->frame_count);
 
-    for (WORD f = 0; f < header.frames; ++f) {
-        frame_t frame = parse_frame(fptr);
+    for (size_t f = 0; f < file->frame_count; ++f) {
+        frame_t *frame = &file->frames[f];
+        printf("  frame %zu - chunk count: %zu\n", f + 1, frame->chunk_count);
 
-        for (DWORD c = 0; c < frame.chunk_count; ++c) {
-            chunk_t chunk = parse_chunk(fptr);
+        for (size_t c = 0; c < frame->chunk_count; ++c) {
+            chunk_t *chunk = &frame->chunks[c];
+            printf("   chunk %zu - type: %#06x, size: %zu\n", c + 1, chunk->type, chunk->size);
         }
     }
+
+    free_file(file);
 
     return 0;
 }
