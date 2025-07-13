@@ -2,7 +2,9 @@
 #define PARSER_H
 
 
-# include "types.h"
+#include <stdio.h>
+
+#include "types.h"
 
 
 typedef enum {
@@ -22,6 +24,18 @@ typedef enum {
     CHUNK_TILESET        = 0x2023,
 } chunk_type_t;
 
+typedef struct __attribute__((packed)) {
+    WORD flags;
+    WORD type;
+    WORD child_level;
+    WORD ignored_a;
+    WORD ignored_b;
+    WORD blend_mode;
+    BYTE opacity;
+    BYTE future[3];
+    STRING name;
+} chunk_layer_t;
+
 
 typedef struct __attribute__((packed)) {
     DWORD size;
@@ -32,7 +46,10 @@ typedef struct __attribute__((packed)) {
 typedef struct {
     chunk_type_t type;
     size_t size;
-    void *data;
+    union {
+        void *data;
+        chunk_layer_t *layer;
+    };
 } chunk_t;
 
 
@@ -84,7 +101,7 @@ typedef struct {
 } file_t;
 
 
-void free_file(file_t *p_file);
+void free_parse_file(file_t *p_file);
 file_t *parse_file(FILE *p_file);
 
 

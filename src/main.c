@@ -7,6 +7,7 @@
 #include <stdlib.h>
 
 #include "parser.h"
+#include "rewriter.h"
 
 int
 main(int argc, char *argv[]) {
@@ -31,7 +32,10 @@ main(int argc, char *argv[]) {
         }
     }
 
-    free_file(file);
+    ir_file_t *ir_file = rewrite_file(file);
+    free_parse_file(file);
+
+    free_ir_file(ir_file);
 
     return 0;
 }

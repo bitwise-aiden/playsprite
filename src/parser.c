@@ -5,7 +5,7 @@
 
 
 void
-free_file(file_t *p_file) {
+free_parse_file(file_t *p_file) {
     for (size_t f = 0; f < p_file->frame_count; ++f) {
         frame_t *frame = &p_file->frames[f];
 
