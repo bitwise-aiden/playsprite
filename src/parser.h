@@ -24,6 +24,40 @@ typedef enum {
     CHUNK_TILESET        = 0x2023,
 } chunk_type_t;
 
+
+typedef enum {
+    CEL_RAW                = 0,
+    CEL_LINKED             = 1,
+    CEL_COMPRESSED_IMAGE   = 2,
+    CEL_COMPRESSED_TILEMAP = 3,
+} cel_type_t;
+
+
+typedef struct __attribute__((packed)) {
+    WORD  layer;
+    SHORT position_x;
+    SHORT position_y;
+    BYTE  opacity;
+    WORD  type;
+    SHORT z_index;
+    BYTE  future[5];
+} chunk_cel_t;
+
+
+typedef struct __attribute__((packed)) {
+    chunk_cel_t cel;
+    WORD frame;
+} chunk_cel_linked_t;
+
+
+typedef struct __attribute__((packed)) {
+    chunk_cel_t cel;
+    WORD width;
+    WORD height;
+    BYTE pixel_data[];
+} chunk_cel_image_t;
+
+
 typedef struct __attribute__((packed)) {
     WORD flags;
     WORD type;
@@ -48,6 +82,9 @@ typedef struct {
     size_t size;
     union {
         void *data;
+        chunk_cel_t *cel;
+        chunk_cel_linked_t *cel_linked;
+        chunk_cel_image_t *cel_image;
         chunk_layer_t *layer;
     };
 } chunk_t;

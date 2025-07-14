@@ -7,14 +7,17 @@
 
 
 typedef struct {
-
+    SHORT x;
+    SHORT y;
+    WORD width;
+    WORD height;
 } ir_cel_t;
 
 
 typedef struct {
     WORD duration;
 
-    ir_cel_t *cels;
+    ir_cel_t **cels;
     size_t cel_count;
 } ir_frame_t;
 
@@ -25,6 +28,8 @@ typedef struct {
 
 
 typedef struct {
+    size_t layer_count;
+
     ir_cel_t *cels;
     size_t cel_count;
 
