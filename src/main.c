@@ -20,17 +20,7 @@ main(int argc, char *argv[]) {
     pfile = fopen(file_path, "r");
 
     file_t *file = parse_file(pfile);
-    // printf("file - frame_count: %zu\n", file->frame_count);
-
-    // for (size_t f = 0; f < file->frame_count; ++f) {
-    //     frame_t *frame = &file->frames[f];
-    //     printf("  frame %zu - chunk count: %zu\n", f + 1, frame->chunk_count);
-
-    //     for (size_t c = 0; c < frame->chunk_count; ++c) {
-    //         chunk_t *chunk = &frame->chunks[c];
-    //         printf("   chunk %zu - type: %#06x, size: %zu\n", c + 1, chunk->type, chunk->size);
-    //     }
-    // }
+    fclose(pfile);
 
     ir_file_t *ir_file = rewrite_file(file);
     free_parse_file(file);

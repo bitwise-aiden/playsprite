@@ -1,12 +1,14 @@
 #include <assert.h>
 #include <stdlib.h>
 
+#include "external/puff.h"
 #include "rewriter.h"
 
 
 #define LAYER_FLAG_VISIBLE 0b1
 #define MAX_DEPTH 16
 #define MAX_LAYERS 256
+
 
 size_t
 calculate_layer_visibility(const frame_t *p_frame, BYTE *out_layer_visibility) {
@@ -43,6 +45,7 @@ free_ir_file(ir_file_t *p_file) {
     free(p_file->frames);
     free(p_file->tags);
 }
+
 
 ir_file_t *
 rewrite_file(file_t *p_file) {
@@ -98,6 +101,26 @@ rewrite_file(file_t *p_file) {
                 cel->y = p_cel->position_y;
                 cel->width = p_chunk->cel_image->width;
                 cel->height = p_chunk->cel_image->height;
+
+                void *data = p_chunk->cel_image->pixel_data;
+
+                if (p_cel->type == CEL_COMPRESSED_IMAGE) {
+                    size_t source_len = (size_t)p_chunk->size - sizeof(chunk_cel_t) - sizeof(WORD) * 2;
+                    void *source = data + 2;
+
+                    size_t dest_len = cel->width * cel->height * sizeof(BYTE);
+                    data = malloc(dest_len);
+
+                    int output = puff(data, &dest_len, source, &source_len);
+                    printf("puffed: %d\n", output);
+                }
+
+                for (size_t h = 0; h < cel->height; ++h) {
+                    for (size_t w = 0; w < cel->width; ++w) {
+                        printf("%03d", ((BYTE *)data)[h * cel->width + w]);
+                    }
+                    printf("\n");
+                }
 
                 printf("cel (f:%zu, l:%d): x: %d, y: %d, w: %d, h: %d\n", f, p_cel->layer, cel->x, cel->y, cel->width, cel->height);
             }

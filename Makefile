@@ -1,4 +1,4 @@
-SRC = $(wildcard src/*.c)
+SRC = $(wildcard src/*.c) $(wildcard src/*/*.c)
 OBJ = $(SRC:src/%.c=$(OUT_DIR)/obj/%.o)
 OUT_DIR = build
 TARGET = $(OUT_DIR)/playsprite
@@ -16,7 +16,7 @@ $(OUT_DIR)/obj/%.o: src/%.c | mk
 	$(CC) $(CFLAGS) -c $< -o $@
 
 mk:
-	mkdir -p $(OUT_DIR)/obj
+	mkdir -p $(OUT_DIR)/obj/external
 
 run:
 	./$(TARGET)
