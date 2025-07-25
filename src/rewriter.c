@@ -21,14 +21,13 @@ calculate_layer_visibility(const frame_t *p_frame, BYTE *out_layer_visibility) {
         const chunk_t *p_chunk = &p_frame->chunks[c];
 
         if (p_chunk->type == CHUNK_LAYER) {
-            const chunk_layer_t *layer = p_chunk->layer;
-            printf("%zu: %s\n", layer_count, layer->name.characters);
+            const chunk_layer_t *p_layer = p_chunk->layer;
 
-            int level = layer->child_level;
+            int level = p_layer->child_level;
             stack_top = level + 1;
 
             BYTE parent_visibility = visibility_stack[level];
-            BYTE visibility = parent_visibility && (layer->flags & LAYER_FLAG_VISIBLE);
+            BYTE visibility = parent_visibility && (p_layer->flags & LAYER_FLAG_VISIBLE);
 
             out_layer_visibility[layer_count++] = visibility;
             visibility_stack[stack_top] = visibility;
@@ -59,14 +58,13 @@ rewrite_file(file_t *p_file) {
     BYTE layer_visibility[MAX_LAYERS];
     file->layer_count = calculate_layer_visibility(&p_file->frames[0], layer_visibility);
 
-    // Allocate the buffer for potential cels. Will never be larger than frame * layer count
-    // so this is a safe upper bound.
     assert(file->layer_count > 0);
     file->cels = malloc(sizeof(ir_cel_t) * file->frame_count * file->layer_count);
     file->cel_count = 0;
 
-    // Iterate over the frames and each of their chunks, pulling out the information required
-    // to instantiate all of the cel data for each.
+    ir_pixel_t *palette = NULL;
+    size_t palette_count = 0;
+
     for (size_t f = 0; f < file->frame_count; ++f) {
         frame_t *p_frame = &p_file->frames[f];
         ir_frame_t *frame = &file->frames[f];
@@ -77,54 +75,103 @@ rewrite_file(file_t *p_file) {
         for (size_t c = 0; c < p_frame->chunk_count; ++c) {
             chunk_t *p_chunk = &p_frame->chunks[c];
 
-            if (p_chunk->type == CHUNK_CEL) {
-                chunk_cel_t *p_cel = p_chunk->cel;
+            switch (p_chunk->type) {
+                case CHUNK_CEL: {
+                    chunk_cel_t *p_cel = p_chunk->cel;
 
-                // If the layer for this cel is invisible, we can ignore it as it won't
-                // make it into the final pass.
-                if (!layer_visibility[p_cel->layer]) {
-                    continue;
-                }
-
-                // If the cel is linked, look up the frame / layer pair that should already
-                // be parsed, and reference that.
-                if (p_cel->type == CEL_LINKED) {
-                    size_t frame_index = p_chunk->cel_linked->frame;
-                    frame->cels[p_cel->layer] = file->frames[frame_index].cels[p_cel->layer];
-
-                    assert(frame->cels[p_cel->layer] != NULL);
-                    continue;
-                }
-
-                ir_cel_t *cel = frame->cels[p_cel->layer] = &file->cels[file->cel_count++];
-                cel->x = p_cel->position_x;
-                cel->y = p_cel->position_y;
-                cel->width = p_chunk->cel_image->width;
-                cel->height = p_chunk->cel_image->height;
-
-                void *data = p_chunk->cel_image->pixel_data;
-
-                if (p_cel->type == CEL_COMPRESSED_IMAGE) {
-                    size_t source_len = (size_t)p_chunk->size - sizeof(chunk_cel_t) - sizeof(WORD) * 2;
-                    void *source = data + 2;
-
-                    size_t dest_len = cel->width * cel->height * sizeof(BYTE);
-                    data = malloc(dest_len);
-
-                    int output = puff(data, &dest_len, source, &source_len);
-                    printf("puffed: %d\n", output);
-                }
-
-                for (size_t h = 0; h < cel->height; ++h) {
-                    for (size_t w = 0; w < cel->width; ++w) {
-                        printf("%03d", ((BYTE *)data)[h * cel->width + w]);
+                    if (!layer_visibility[p_cel->layer]) {
+                        continue;
                     }
-                    printf("\n");
-                }
 
-                printf("cel (f:%zu, l:%d): x: %d, y: %d, w: %d, h: %d\n", f, p_cel->layer, cel->x, cel->y, cel->width, cel->height);
+                    if (p_cel->type == CEL_LINKED) {
+                        size_t frame_index = p_chunk->cel_linked->frame;
+                        frame->cels[p_cel->layer] = file->frames[frame_index].cels[p_cel->layer];
+
+                        assert(frame->cels[p_cel->layer] != NULL);
+                        continue;
+                    }
+
+                    ir_cel_t *cel = frame->cels[p_cel->layer] = &file->cels[file->cel_count++];
+                    cel->x = p_cel->position_x;
+                    cel->y = p_cel->position_y;
+                    cel->z_index = p_cel->z_index;
+                    cel->width = p_chunk->cel_image->width;
+                    cel->height = p_chunk->cel_image->height;
+
+                    void *data = p_chunk->cel_image->pixel_data;
+
+                    if (p_cel->type == CEL_COMPRESSED_IMAGE) {
+                        size_t source_len = (size_t)p_chunk->size - sizeof(chunk_cel_t) - sizeof(WORD) * 2;
+                        void *source = data + 2;
+
+                        size_t dest_len = cel->width * cel->height * sizeof(BYTE);
+                        data = malloc(dest_len);
+
+                        int output = puff(data, &dest_len, source, &source_len);
+                    }
+                } break;
+
+                case CHUNK_PALETTE_OLD_1:
+                case CHUNK_PALETTE_OLD_2: {
+                    assert(palette == NULL);
+
+                    BYTE *raw = p_chunk->data;
+
+                    WORD packet_count = *(WORD *)raw;
+                    raw += sizeof(WORD);
+
+                    palette = malloc(sizeof(ir_pixel_t) * 256);
+
+                    for (size_t p = 0; p < packet_count; ++p) {
+                        BYTE skip = *raw++;
+                        BYTE color_count = *raw++;
+                        BYTE max_index = color_count - 1;
+
+                        assert(skip + max_index <= 255);
+
+                        for (size_t c = 0; c <= max_index; ++c) {
+                            size_t index = skip + max_index;
+
+                            palette[index].r = *raw++;
+                            palette[index].g = *raw++;
+                            palette[index].b = *raw++;
+                            palette[index].a = 255;
+
+                            ++palette_count;
+                        }
+                    }
+                } break;
+
+                case CHUNK_PALETTE: {
+                    assert(palette == NULL);
+
+                    const chunk_palette_t *p_palette = p_chunk->palette;
+
+                    palette_count = p_palette->size;
+                    palette = malloc(sizeof(ir_pixel_t) * palette_count);
+
+                    BYTE *color_ptr = (BYTE *)p_palette + sizeof(chunk_palette_t);
+
+                    for (size_t p = p_palette->index_first; p <= p_palette->index_last; ++p) {
+                        WORD has_name = *(WORD *)color_ptr;
+                        color_ptr += sizeof(WORD);
+
+                        palette[p].r = *color_ptr++;
+                        palette[p].g = *color_ptr++;
+                        palette[p].b = *color_ptr++;
+                        palette[p].a = *color_ptr++;
+
+                        while (has_name && *color_ptr++ != '\0');
+                    }
+                } break;
+
+                default: {} break;
             }
         }
+    }
+
+    if (palette != NULL) {
+        free(palette);
     }
 
     return file;

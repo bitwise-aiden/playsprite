@@ -7,10 +7,22 @@
 
 
 typedef struct {
+    BYTE r;
+    BYTE g;
+    BYTE b;
+    BYTE a;
+} ir_pixel_t;
+
+
+typedef struct {
     SHORT x;
     SHORT y;
     WORD width;
     WORD height;
+    SHORT z_index;
+
+    ir_pixel_t *pixels;
+    size_t pixel_count;
 } ir_cel_t;
 
 
