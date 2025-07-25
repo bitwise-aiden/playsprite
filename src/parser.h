@@ -73,6 +73,14 @@ typedef struct __attribute__((packed)) {
 
 typedef struct __attribute__((packed)) {
     DWORD size;
+    DWORD index_first;
+    DWORD index_last;
+    BYTE future[8];
+} chunk_palette_t;
+
+
+typedef struct __attribute__((packed)) {
+    DWORD size;
     WORD type;
 } chunk_header_t;
 
@@ -86,6 +94,7 @@ typedef struct {
         chunk_cel_linked_t *cel_linked;
         chunk_cel_image_t *cel_image;
         chunk_layer_t *layer;
+        chunk_palette_t *palette;
     };
 } chunk_t;
 
