@@ -40,6 +40,10 @@ calculate_layer_visibility(const frame_t *p_frame, BYTE *out_layer_visibility) {
 
 void
 free_ir_file(ir_file_t *p_file) {
+    for (size_t c = 0; c < p_file->cel_count; ++c) {
+        free(p_file->cels[c].pixels);
+    }
+
     free(p_file->cels);
     free(p_file->frames);
     free(p_file->tags);
@@ -59,7 +63,7 @@ rewrite_file(file_t *p_file) {
     file->layer_count = calculate_layer_visibility(&p_file->frames[0], layer_visibility);
 
     assert(file->layer_count > 0);
-    file->cels = malloc(sizeof(ir_cel_t) * file->frame_count * file->layer_count);
+    file->cels = malloc(sizeof(ir_cel_data_t) * file->frame_count * file->layer_count);
     file->cel_count = 0;
 
     ir_pixel_t *palette = NULL;
@@ -70,7 +74,7 @@ rewrite_file(file_t *p_file) {
         ir_frame_t *frame = &file->frames[f];
 
         frame->cel_count = file->layer_count;
-        frame->cels = malloc(sizeof(ir_cel_t *) * frame->cel_count);
+        frame->cels = malloc(sizeof(ir_cel_instance_t) * frame->cel_count);
 
         for (size_t c = 0; c < p_frame->chunk_count; ++c) {
             chunk_t *p_chunk = &p_frame->chunks[c];
@@ -83,31 +87,67 @@ rewrite_file(file_t *p_file) {
                         continue;
                     }
 
+                    ir_cel_instance_t *cel = &frame->cels[p_cel->layer];
+                    cel->z_index = p_cel->z_index;
+
                     if (p_cel->type == CEL_LINKED) {
                         size_t frame_index = p_chunk->cel_linked->frame;
-                        frame->cels[p_cel->layer] = file->frames[frame_index].cels[p_cel->layer];
+                        cel->data = file->frames[frame_index].cels[p_cel->layer].data;
 
-                        assert(frame->cels[p_cel->layer] != NULL);
+                        assert(cel->data != NULL);
                         continue;
                     }
 
-                    ir_cel_t *cel = frame->cels[p_cel->layer] = &file->cels[file->cel_count++];
-                    cel->x = p_cel->position_x;
-                    cel->y = p_cel->position_y;
-                    cel->z_index = p_cel->z_index;
-                    cel->width = p_chunk->cel_image->width;
-                    cel->height = p_chunk->cel_image->height;
+                    ir_cel_data_t *cel_data = frame->cels[p_cel->layer].data = &file->cels[file->cel_count++];
+                    cel_data->x = p_cel->position_x;
+                    cel_data->y = p_cel->position_y;
+                    cel_data->width = p_chunk->cel_image->width;
+                    cel_data->height = p_chunk->cel_image->height;
 
-                    void *data = p_chunk->cel_image->pixel_data;
+                    cel_data->pixel_count = cel_data->width * cel_data->height;
+                    cel_data->pixels = malloc(sizeof(ir_pixel_t) * cel_data->pixel_count);
+
+                    void *raw = p_chunk->cel_image->pixel_data;
 
                     if (p_cel->type == CEL_COMPRESSED_IMAGE) {
                         size_t source_len = (size_t)p_chunk->size - sizeof(chunk_cel_t) - sizeof(WORD) * 2;
-                        void *source = data + 2;
+                        void *source = raw + 2;
 
-                        size_t dest_len = cel->width * cel->height * sizeof(BYTE);
-                        data = malloc(dest_len);
+                        size_t dest_len = cel_data->width * cel_data->height * (p_file->header.color_depth / sizeof(BYTE));
+                        raw = malloc(dest_len);
 
-                        int output = puff(data, &dest_len, source, &source_len);
+                        int output = puff(raw, &dest_len, source, &source_len);
+                        assert(output == 0);
+                    }
+
+                    BYTE *data = (BYTE *)raw;
+
+                    for (size_t p = 0; p < cel_data->pixel_count; ++p) {
+                        switch(p_file->header.color_depth) {
+                            case COLOR_DEPTH_RGBA: {
+                                cel_data->pixels[p].r = *data++;
+                                cel_data->pixels[p].g = *data++;
+                                cel_data->pixels[p].b = *data++;
+                                cel_data->pixels[p].a = *data++;
+                            } break;
+                            case COLOR_DEPTH_GRAYSCALE: {
+                                cel_data->pixels[p].r = cel_data->pixels[p].g = cel_data->pixels[p].b = *data++;
+                                cel_data->pixels[p].a = *data++;
+                            } break;
+                            case COLOR_DEPTH_INDEXED: {
+                                BYTE index = *data++;
+                                cel_data->pixels[p] = palette[index];
+                                cel_data->pixels[p].a *= (index != p_file->header.palette_entry);
+                            } break;
+
+                            default: {
+                                assert(0);
+                            } break;
+                        }
+                    }
+
+                    if (p_cel->type == CEL_COMPRESSED_IMAGE) {
+                        free(raw);
                     }
                 } break;
 
@@ -130,7 +170,7 @@ rewrite_file(file_t *p_file) {
                         assert(skip + max_index <= 255);
 
                         for (size_t c = 0; c <= max_index; ++c) {
-                            size_t index = skip + max_index;
+                            size_t index = skip + c;
 
                             palette[index].r = *raw++;
                             palette[index].g = *raw++;

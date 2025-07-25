@@ -33,6 +33,13 @@ typedef enum {
 } cel_type_t;
 
 
+typedef enum {
+    COLOR_DEPTH_RGBA = 32,
+    COLOR_DEPTH_GRAYSCALE = 16,
+    COLOR_DEPTH_INDEXED = 8,
+} color_depth_t;
+
+
 typedef struct __attribute__((packed)) {
     WORD  layer;
     SHORT position_x;
