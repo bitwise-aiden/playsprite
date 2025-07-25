@@ -87,6 +87,25 @@ typedef struct __attribute__((packed)) {
 
 
 typedef struct __attribute__((packed)) {
+    WORD from_frame;
+    WORD to_frame;
+    BYTE animation_direction;
+    WORD repeat;
+    BYTE future[6];
+    BYTE tag_color[3];
+    BYTE extra;
+    STRING name;
+} chunk_tag_t;
+
+
+typedef struct __attribute__((packed)) {
+    WORD tag_count;
+    BYTE future[8];
+    chunk_tag_t tags[];
+} chunk_tags_t;
+
+
+typedef struct __attribute__((packed)) {
     DWORD size;
     WORD type;
 } chunk_header_t;
@@ -102,6 +121,7 @@ typedef struct {
         chunk_cel_image_t *cel_image;
         chunk_layer_t *layer;
         chunk_palette_t *palette;
+        chunk_tags_t *tags;
     };
 } chunk_t;
 

@@ -40,7 +40,9 @@ typedef struct {
 
 
 typedef struct {
-
+    WORD first_frame;
+    WORD last_frame;
+    char *name;
 } ir_tag_t;
 
 

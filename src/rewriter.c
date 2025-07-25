@@ -205,6 +205,21 @@ rewrite_file(file_t *p_file) {
                     }
                 } break;
 
+                case CHUNK_TAGS: {
+                    const chunk_tags_t *p_tags = p_chunk->tags;
+
+                    file->tag_count = p_tags->tag_count;
+                    file->tags = malloc(sizeof(ir_tag_t) * file->tag_count);
+
+                    for (size_t t = 0; t < p_tags->tag_count; ++t) {
+                        const chunk_tag_t *p_tag = &p_tags->tags[t];
+                        // TODO: Better handle the variable size of name
+
+                        // printf("%s", p_tag->name);
+                    }
+
+                } break;
+
                 default: {} break;
             }
         }
